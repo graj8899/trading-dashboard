@@ -54,4 +54,40 @@ ticker; no `side` field on trades; 500-level full-snapshot order book.
 
 ---
 
-<!-- Phase 1+ prompts appended here as each phase completes. -->
+## Phase 1 — Scaffold + types
+
+**Surface:** terminal (scaffold) + Claude in VS Code (types).
+
+Scaffolded Vite React-TS, added zustand + vitest, committed the vanilla scaffold
+on its own so the next diff would show only hand-designed code.
+
+**Prompt 1.1 — Claude in VS Code:**
+> Read docs/architecture-and-build-plan.md — it is the design contract for this
+> project; follow it for everything.
+>
+> Set up the project skeleton:
+> 1. tsconfig: strict true, noUncheckedIndexedAccess true, noImplicitReturns true.
+> 2. Folder structure: src/transport, src/engines, src/stores, src/components,
+>    src/config, src/types, src/utils. Direct imports only — no barrel files, no
+>    circular deps.
+> 3. src/types/messages.ts: TypeScript types for the three WebSocket message
+>    types, derived EXACTLY from the real captured payloads in docs/fixtures/*.json.
+>    Model them as a discriminated union on the `type` field. Prices are strings,
+>    timestamps are microseconds — type them as-is with comments; do not clean up
+>    the wire format. Only the fields we use, plus a comment noting others exist.
+> 4. src/config/symbols.ts: the symbol config table from the doc — precision and
+>    grouping ladder per symbol, `as const`, with a Symbol union type from its keys.
+> 5. Vitest config wired into package.json (test script).
+> No `any` anywhere. No UI yet.
+
+**Human verification:** read messages.ts and symbols.ts field-by-field against the
+captured fixtures (close typed as number, prices/ratio as strings, µs timestamps,
+no trade `side` field; all six symbols' precisions and grouping ladders match the
+doc's table). Ran `npx tsc --noEmit` (clean) and `grep -rn ": any" src/` (none).
+Noted for Phase 4: ladder increments are decimal floats, so `g = increment ×
+10^precision` must be wrapped in Math.round to stay an exact integer (DOGE 6dp).
+
+---
+
+<!-- Phase 2+ prompts appended here as each phase completes. -->
+
