@@ -1,0 +1,25 @@
+{
+  "type": "subscriptions",
+  "payload": {
+    "channels": [
+      {
+        "name": "v2/ticker",
+        "symbols": [
+          "BTCUSD"
+        ]
+      },
+      {
+        "name": "l2_orderbook",
+        "symbols": [
+          "BTCUSD"
+        ]
+      },
+      {
+        "name": "all_trades",
+        "symbols": [
+          "BTCUSD"
+        ]
+      }
+    ]
+  }
+}

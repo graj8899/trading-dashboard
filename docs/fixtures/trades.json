@@ -1,0 +1,10 @@
+{
+  "buyer_role": "taker",
+  "price": "63588.4",
+  "product_id": 27,
+  "seller_role": "maker",
+  "size": 96,
+  "symbol": "BTCUSD",
+  "timestamp": 1783963314096000,
+  "type": "all_trades"
+}
