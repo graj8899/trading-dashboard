@@ -89,5 +89,46 @@ Noted for Phase 4: ladder increments are decimal floats, so `g = increment ×
 
 ---
 
-<!-- Phase 2+ prompts appended here as each phase completes. -->
+## Phase 2 — Transport layer
+
+**Surface:** Claude in VS Code.
+
+**Prompt 2.1:**
+> Read docs/architecture-and-build-plan.md, src/types/messages.ts and
+> docs/fixtures/ack.json.
+>
+> Implement the transport layer per the doc's "Transport layer" section:
+> 1. src/transport/SocketClient.ts — framework-free class (no React imports).
+>    Owns one WebSocket to ws://localhost:8080. States connecting/connected/
+>    reconnecting/disconnected via an onStatus callback. Reconnect with
+>    exponential backoff min(1000×2^n, 30000) plus full jitter, counter resets on
+>    open. An epoch number incremented on every reconnect, exposed to consumers.
+>    Route messages: parse JSON once, switch on msg.type, dispatch to per-channel
+>    handlers. Malformed JSON: log and drop, never throw.
+> 2. src/transport/SubscriptionManager.ts — holds the DESIRED subscription set.
+>    On (re)connect sends the full desired set. Listens for the server's
+>    `subscriptions` ack, diffs actual vs desired, re-sends on drift. Public API
+>    setDesired(subscriptions); computes minimal subscribe/unsubscribe messages.
+> 3. src/stores/connection.ts — Zustand store {status, epoch}; only writer is a
+>    thin adapter wired to SocketClient callbacks. No business logic.
+> 4. src/components/ConnectionBadge.tsx — memoized, selector to status only.
+> Wire behind a single bootTransport() in App.tsx; delete the Vite demo assets.
+> No `any`. Unit tests for SubscriptionManager's diffing logic.
+
+**Prompt 2.2 (understanding pass):**
+> Walk me through SocketClient.ts and SubscriptionManager.ts function by function.
+> For each: why does it exist, what breaks if it's removed, and what interview
+> question would you expect about it? Be specific to this code, not generic.
+
+**Human verification:** live-tested all four connection states — connecting flash
+on load, connected steady, reconnecting on backend kill with growing delays and
+auto-recovery without page refresh (ack shows resubscription), disconnected only
+via explicit disconnect(). Reviewed backoff/full-jitter math, epoch-at-drop
+semantics, and ack reconciliation. `npm test` green (diff unit tests incl. focus
+swap, no-drift, dedupe, partial overlap, channel-order determinism).
+
+---
+
+<!-- Phase 3+ prompts appended here as each phase completes. -->
+
 
