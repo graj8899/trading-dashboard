@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { ConnectionBadge } from "./components/ConnectionBadge";
+import { MetricsOverlay } from "./components/MetricsOverlay";
 import { OrderBookPanel } from "./components/OrderBookPanel";
 import { TickerBar } from "./components/TickerBar";
 import { TradesPanel } from "./components/TradesPanel";
@@ -18,6 +19,7 @@ function App() {
         <OrderBookPanel />
         <TradesPanel />
       </div>
+      {import.meta.env.DEV && <MetricsOverlay />}
     </div>
   );
 }

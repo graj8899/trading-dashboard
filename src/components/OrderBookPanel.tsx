@@ -73,21 +73,30 @@ function OrderBookRow({ side, row, maxCum, precision }: OrderBookRowProps) {
           }}
         />
       )}
-      {row && row.flash && (
-        // Keyed on price+size ("changeKey"): a fresh key forces React to
-        // mount a brand-new element, which restarts the CSS animation with
-        // no JS timer involved — old elements just get thrown away.
-        <div
-          key={`${row.price}-${row.size}`}
-          aria-hidden="true"
-          className={
-            row.flash === "up"
-              ? "orderbook-row-flash-up"
-              : "orderbook-row-flash-down"
-          }
-          style={{ position: "absolute", inset: 0, zIndex: 1 }}
-        />
-      )}
+      {/* Persistent flash overlay: ONE stable element per row, never
+          remounted. The tint is driven directly by row.flash and fades out
+          via a CSS transition. The previous approach mounted a NEW keyed
+          element per flash to restart a keyframe animation; under
+          constant-flash stress that churned ~1,400 animated divs/sec, and a
+          detached element with a running CSS animation is retained until the
+          animation ends — leaking the DOM node count (72k+ and climbing). A
+          stable element + transition has zero churn. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+          pointerEvents: "none",
+          transition: "background-color 140ms ease-out",
+          backgroundColor:
+            row?.flash === "up"
+              ? "rgba(31, 157, 85, 0.45)"
+              : row?.flash === "down"
+                ? "rgba(192, 57, 43, 0.45)"
+                : "transparent",
+        }}
+      />
       <span style={{ ...cellStyle, textAlign: "left" }}>
         {row ? formatNumber(row.price, precision) : ""}
       </span>

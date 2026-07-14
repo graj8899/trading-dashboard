@@ -2,6 +2,12 @@ import { SYMBOLS, type Symbol } from "../config/symbols";
 import { OrderBookEngine } from "../engines/OrderBookEngine";
 import { TickerEngine } from "../engines/TickerEngine";
 import { TradesEngine } from "../engines/TradesEngine";
+import {
+  createPublishedFlag,
+  instrumentFlush,
+  withPublishFlag,
+} from "../metrics/instrument";
+import { recordMessage } from "../metrics/engineMetrics";
 import { useConnectionStore, setConnectionState } from "../stores/connection";
 import { useMarketStore } from "../stores/market";
 import { publishOrderbook, resetOrderbookForFocusSwitch } from "../stores/orderbook";
@@ -46,23 +52,56 @@ export function bootTransport(): Transport {
 
   const socket = new SocketClient(WS_URL);
   const subscriptionManager = new SubscriptionManager(socket);
-  const tickerEngine = new TickerEngine(publishTickers);
+
+  // Dev-only instrumentation (metrics overlay): wraps each engine's publish
+  // callback to flag "this flush published" and its flush() to time it via
+  // performance.mark/measure. Gated by import.meta.env.DEV so Vite/Rollup
+  // dead-code-eliminates all of it — and the ../metrics/* modules with it —
+  // from the production bundle.
+  const tickerPublishFlag = createPublishedFlag();
+  const orderBookPublishFlag = createPublishedFlag();
+  const tradesPublishFlag = createPublishedFlag();
+
+  const tickerEngine = new TickerEngine(
+    import.meta.env.DEV
+      ? withPublishFlag(publishTickers, tickerPublishFlag.onPublish)
+      : publishTickers,
+  );
   const orderBookEngine = new OrderBookEngine({
-    publish: publishOrderbook,
+    publish: import.meta.env.DEV
+      ? withPublishFlag(publishOrderbook, orderBookPublishFlag.onPublish)
+      : publishOrderbook,
     getEpoch: () => useConnectionStore.getState().epoch,
     getGroupingIncrement: (symbol) =>
       usePreferencesStore.getState().grouping[symbol],
   });
   const tradesEngine = new TradesEngine({
-    publishTrades,
+    publishTrades: import.meta.env.DEV
+      ? withPublishFlag(publishTrades, tradesPublishFlag.onPublish)
+      : publishTrades,
     publishStats: publishTradeStats,
     getEpoch: () => useConnectionStore.getState().epoch,
   });
 
+  if (import.meta.env.DEV) {
+    instrumentFlush("ticker", tickerEngine, tickerPublishFlag.consume);
+    instrumentFlush("orderbook", orderBookEngine, orderBookPublishFlag.consume);
+    instrumentFlush("trades", tradesEngine, tradesPublishFlag.consume);
+  }
+
   socket.onStatus((status, epoch) => setConnectionState(status, epoch));
-  socket.on("v2/ticker", (msg) => tickerEngine.onMessage(msg));
-  socket.on("l2_orderbook", (msg) => orderBookEngine.onMessage(msg));
-  socket.on("all_trades", (msg) => tradesEngine.onMessage(msg));
+  socket.on("v2/ticker", (msg) => {
+    if (import.meta.env.DEV) recordMessage("ticker");
+    tickerEngine.onMessage(msg);
+  });
+  socket.on("l2_orderbook", (msg) => {
+    if (import.meta.env.DEV) recordMessage("orderbook");
+    orderBookEngine.onMessage(msg);
+  });
+  socket.on("all_trades", (msg) => {
+    if (import.meta.env.DEV) recordMessage("trades");
+    tradesEngine.onMessage(msg);
+  });
   tickerEngine.start();
   orderBookEngine.start();
   tradesEngine.start();

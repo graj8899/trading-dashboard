@@ -301,7 +301,39 @@ same-price merges are seldom exercised by real data.
 
 ---
 
-<!-- Phase 6+ prompts appended here as each phase completes. -->
+## Phase 6 — Focus switching
+
+**Surface:** Claude in VS Code.
+
+**Prompt 6.1:**
+> Wire the focus-switch sequence exactly as the doc specifies. Clicking a ticker →
+> market store updates (persisted) → epoch increments → orderbook and trades stores
+> reset to loading (no stale data) → SubscriptionManager desired-set changes (unsub
+> old symbol's l2_orderbook + all_trades, sub new) → engines drop buffered old-epoch
+> messages → first new-symbol message clears loading. Reconnect replays the CURRENT
+> desired set (focused symbol's channels), not a stale one. No `any`.
+
+Implemented as a synchronous useMarketStore.subscribe handler in bootTransport:
+bumpEpoch() → resetOrderbook/TradesForFocusSwitch(epoch) → setDesired(new). A single
+buildDesiredSubscriptions(focusedSymbol) is the source of truth, so reconnect replays
+the current focus.
+
+**Human verification (screen recordings + WS frame inspection):**
+- Connected rapid-switch through all 6 symbols incl. BTC↔DOGE (61,000 vs 0.03,
+  6dp): book + trades always symbol-correct, no stale flash.
+- WS SEND frames: boot subscribe(6 tickers); each switch = one unsubscribe(old
+  l2_orderbook + all_trades) + one subscribe(new), tickers untouched, no orphans.
+- Kill/restart while focused on a non-default symbol recovers to that symbol.
+
+Documented edge (in-flight, not observed): engines stamp epoch at message arrival
+and don't filter by symbol, so an old-symbol message arriving in the sub-ms window
+after a switch could in principle render for one frame; not seen on localhost.
+Cosmetic: rolling-stats bar reads 0 for up to ~1s after a switch (window reset)
+while the feed populates immediately.
+
+---
+
+<!-- Phase 7+ prompts appended here as each phase completes. -->
 
 
 
