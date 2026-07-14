@@ -164,7 +164,67 @@ swap, no-drift, dedupe, partial overlap, channel-order determinism).
 
 ---
 
-<!-- Phase 4+ prompts appended here as each phase completes. -->
+## Phase 4 — Order book (split into 3 commits)
+
+**Surface:** Claude in VS Code.
+
+### 4.1 — pure grouping pipeline + tests (no UI)
+
+**Prompt 4.1:**
+> Read docs/architecture-and-build-plan.md — OrderBookEngine section, especially
+> the integer-tick grouping pipeline — and src/config/symbols.ts,
+> docs/fixtures/orderbook.json.
+>
+> Implement the pure transformation pipeline in src/engines/orderbook/pipeline.ts
+> (no React, no store imports):
+> 1. parseAndGroup(msg, groupingIncrement, precision, N): prices → integer ticks
+>    via Math.round(parseFloat(p) × 10^precision); bucket bids with floor(ticks/g)×g
+>    and asks with ceil(ticks/g)×g where g = Math.round(increment × 10^precision).
+>    Walk the already-sorted raw arrays accumulating size per bucket; EARLY-EXIT
+>    after N buckets per side (N=12).
+> 2. Same pass: cumulative sizes, maxCumulative, mid, spreadAbs, spreadBps,
+>    imbalance (Σ visible bid / Σ visible ask) — all from the GROUPED view.
+> 3. Return an immutable OrderbookView; convert bucket ticks back to display
+>    prices at the symbol's precision.
+> Then thorough Vitest tests BEFORE any UI: 6 symbols × each ladder increment —
+> floor/ceil boundaries, size aggregation, cumulative monotonicity, DOGEUSD 6dp
+> exactness, early-exit fills N, spread/imbalance from grouped not raw. Real
+> fixture as one input. No `any`.
+
+**Human verification:** independently reproduced the boundary rounding and DOGE
+6dp results in plain Node (61785/61790; 0.012345 round-trip; 0.0123/0.0124). The
+Math.round(g) guard is present — kept as provably-exact defence against float
+representation, not a fix for an observed bug. `npm test` green. Documented
+assumption: pipeline relies on the backend's best→worst sort (contiguous buckets).
+
+### 4.2 — engine + store
+
+**Prompt 4.2:**
+> Implement src/engines/OrderBookEngine.ts per the doc: single latestRaw slot
+> (latest-snapshot-wins), rAF flush runs the 4.1 pipeline and publishes to a new
+> src/stores/orderbook.ts as { view, loading, epoch }. Flush carries the transport
+> epoch; discard if stale. Track previous snapshot's bucket sizes to mark
+> flash 'up'|'down'|null on >10% size change, rate-limited to one flash per bucket
+> per 300ms. Grouping increment from a new src/stores/preferences.ts (per-symbol
+> grouping + largeTradeThreshold, persisted). Unit tests for the flash rate-limiter
+> (fake timers) and the epoch guard.
+
+**Follow-up (review-driven):**
+> The flash-tracking maps accumulate every bucket key ever seen within an epoch,
+> so they grow as the mid wanders and a bucket that scrolls out then back in
+> compares against a stale size. Rebuild them each flush to hold only the current
+> snapshot's visible buckets (bounds to ≤2×N, makes "previous" literally the last
+> snapshot). Add a test asserting the maps stay bounded over many wandering-mid
+> snapshots.
+
+**Human verification:** reviewed all four risk points — stable bucket-price flash
+keys, epoch read at flush time, per-symbol preferences, flash reset on epoch
+change. Traced that the map-rebuild preserves the 300ms rate-limit window across
+flushes. Memory-bound test confirms ≤2×N entries over 200 wandering snapshots.
+`npm test` green.
+
+<!-- 4.3 appended below when complete. -->
+
 
 
 
