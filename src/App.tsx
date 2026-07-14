@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ConnectionBadge } from "./components/ConnectionBadge";
 import { OrderBookPanel } from "./components/OrderBookPanel";
 import { TickerBar } from "./components/TickerBar";
+import { TradesPanel } from "./components/TradesPanel";
 import { bootTransport } from "./transport/bootTransport";
 
 function App() {
@@ -13,7 +14,10 @@ function App() {
     <div>
       <ConnectionBadge />
       <TickerBar />
-      <OrderBookPanel />
+      <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
+        <OrderBookPanel />
+        <TradesPanel />
+      </div>
     </div>
   );
 }

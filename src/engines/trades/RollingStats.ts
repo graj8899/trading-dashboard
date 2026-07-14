@@ -89,6 +89,24 @@ export class RollingStats {
     return { buyVol, sellVol, count, avgSize: count > 0 ? sizeSum / count : 0 };
   }
 
+  // Clears all buckets and totals back to the initial empty state. For a
+  // consumer like TradesEngine, this is what "a new epoch" means: stats
+  // from a different symbol/session are not meaningfully comparable.
+  reset(): void {
+    for (const bucket of this.buckets) {
+      bucket.second = null;
+      bucket.buyVol = 0;
+      bucket.sellVol = 0;
+      bucket.count = 0;
+      bucket.sizeSum = 0;
+    }
+    this.totals.buyVol = 0;
+    this.totals.sellVol = 0;
+    this.totals.count = 0;
+    this.totals.sizeSum = 0;
+    this.headSecond = null;
+  }
+
   private advanceTo(second: number): void {
     if (this.headSecond === null) {
       this.headSecond = second;
