@@ -250,7 +250,58 @@ grouping immediately but the l2_orderbook subscription only follows after reload
 
 ---
 
-<!-- Phase 5+ prompts appended here as each phase completes. -->
+## Phase 5 — Trades feed (2 commits)
+
+**Surface:** Claude in VS Code.
+
+### 5.1 — merge + rolling stats + tests
+
+**Prompt 5.1:**
+> Implement pure modules with Vitest tests: src/engines/trades/merge.ts
+> (deriveSide from buyer_role; mergeIntoRows — merge same-price within 100ms of
+> the row's FIRST trade, µs→ms once; format time once at ingest) and
+> src/engines/trades/RollingStats.ts (60 one-second bucket ring with running
+> totals, O(1) record + O(1) per-second eviction, getStats {buyVol, sellVol,
+> count, avgSize}). Tests: merge boundaries (99/100/101ms), side derivation,
+> ring wraparound, eviction after multi-second gaps.
+
+**Human verification:** independently reran the ring scenarios in Node (60s
+evict, 59s keep, 250s roll, tick-only decay, 1h-gap-then-resume, stepped==jumped)
+— all match. avgSize guarded against divide-by-zero. `npm test` green.
+
+### 5.2 — engine + UI
+
+**Prompt 5.2:**
+> Implement src/engines/TradesEngine.ts: bounded pending queue (cap 2000, shed
+> oldest), rAF flush merges into a 200-row ring and publishes to src/stores/
+> trades.ts; feed RollingStats; publish stats to a SEPARATE src/stores/
+> tradeStats.ts once per second (drive tick() on that 1Hz cadence). Epoch-guard
+> like the book. UI: TradesPanel — rows (time, side-colored price, size, ×count
+> badge, large-trade style when price×size ≥ threshold); auto-scroll pin/unpin
+> with "Jump to latest"; RollingStatsBar (1Hz); per-symbol threshold input.
+
+**Follow-up (review-driven):** moved the `large` determination out of the engine
+into TradeRowItem (reads threshold live from preferences) so editing the
+threshold restyles visible rows immediately, even during a lull; engine now
+publishes plain TradeRow[].
+
+**Human verification (screen recordings + Profiler):** feed flows with side
+colors + 1Hz stats; grouping + threshold work; large-trade highlight discriminates
+per row (verified 62236.5×96 = 5.97M rendered plain below a 6M threshold while
+larger rows highlight). Profiler: trades commit re-renders only TradesPanel +
+TradeRowItems (no book/ticker); book commit re-renders only the book — isolation
+both directions. Evidence: profiler-trades-isolation.png, profiler-book-isolation.png.
+
+Documented for KNOWN_ISSUES / assumptions: feed trims oldest rows off the top
+(reading position can shift when scrolled up under high volume); rolling-stats
+ring advanced by trade timestamps (record) + wall-clock (1Hz tick), safe as
+backend stamps Date.now() on the same host; backend emits near-uniform trade
+sizes (~96-106) and random per-trade prices, so large-trade highlighting and
+same-price merges are seldom exercised by real data.
+
+---
+
+<!-- Phase 6+ prompts appended here as each phase completes. -->
 
 
 

@@ -1,16 +1,16 @@
-import { SYMBOLS } from "../config/symbols";
+import { SYMBOLS, type Symbol } from "../config/symbols";
 import { OrderBookEngine } from "../engines/OrderBookEngine";
 import { TickerEngine } from "../engines/TickerEngine";
 import { TradesEngine } from "../engines/TradesEngine";
 import { useConnectionStore, setConnectionState } from "../stores/connection";
 import { useMarketStore } from "../stores/market";
-import { publishOrderbook } from "../stores/orderbook";
+import { publishOrderbook, resetOrderbookForFocusSwitch } from "../stores/orderbook";
 import { usePreferencesStore } from "../stores/preferences";
 import { publishTickers } from "../stores/tickers";
 import { publishTradeStats } from "../stores/tradeStats";
-import { publishTrades } from "../stores/trades";
+import { publishTrades, resetTradesForFocusSwitch } from "../stores/trades";
 import { SocketClient } from "./SocketClient";
-import { SubscriptionManager } from "./SubscriptionManager";
+import { SubscriptionManager, type ChannelSubscription } from "./SubscriptionManager";
 
 const WS_URL = "ws://localhost:8080";
 
@@ -23,6 +23,21 @@ export interface Transport {
 }
 
 let transport: Transport | null = null;
+
+// Always all 6 tickers, plus orderbook/trades for whichever symbol is
+// currently focused. This is the single source of truth for "the current
+// desired set" — used both at boot and on every focus switch, so a
+// reconnect (which resends `desired` as-is, see SubscriptionManager) always
+// replays the CURRENT set, never a stale one from an earlier focus.
+export function buildDesiredSubscriptions(
+  focusedSymbol: Symbol,
+): ChannelSubscription[] {
+  return [
+    { name: "v2/ticker", symbols: [...SYMBOLS] },
+    { name: "l2_orderbook", symbols: [focusedSymbol] },
+    { name: "all_trades", symbols: [focusedSymbol] },
+  ];
+}
 
 // Idempotent: safe to call more than once (e.g. React StrictMode's double
 // effect invocation) — only the first call creates the socket.
@@ -52,21 +67,26 @@ export function bootTransport(): Transport {
   orderBookEngine.start();
   tradesEngine.start();
 
+  // Focus-switch sequence (doc: "no stale flash"):
+  //   market store already updated + persisted (that's what fired this) →
+  //   epoch++ → orderbook/trades stores reset to {loading: true} →
+  //   SubscriptionManager desired set changes (unsub old, sub new) →
+  //   engines drop buffered old-epoch data via the epoch guard →
+  //   the first new-symbol message clears loading (publishOrderbook/publishTrades).
+  useMarketStore.subscribe((state, prevState) => {
+    if (state.focusedSymbol === prevState.focusedSymbol) return;
+
+    socket.bumpEpoch();
+    const epoch = socket.getEpoch();
+    resetOrderbookForFocusSwitch(epoch);
+    resetTradesForFocusSwitch(epoch);
+    subscriptionManager.setDesired(buildDesiredSubscriptions(state.focusedSymbol));
+  });
+
   socket.connect();
-  // Orderbook/trades are only subscribed for the focused symbol.
-  // Re-subscribing on focus change (unsub old, sub new) is wired in a
-  // later phase.
-  subscriptionManager.setDesired([
-    { name: "v2/ticker", symbols: [...SYMBOLS] },
-    {
-      name: "l2_orderbook",
-      symbols: [useMarketStore.getState().focusedSymbol],
-    },
-    {
-      name: "all_trades",
-      symbols: [useMarketStore.getState().focusedSymbol],
-    },
-  ]);
+  subscriptionManager.setDesired(
+    buildDesiredSubscriptions(useMarketStore.getState().focusedSymbol),
+  );
 
   transport = {
     socket,

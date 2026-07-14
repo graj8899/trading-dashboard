@@ -18,3 +18,10 @@ export const useTradesStore = create<TradesState>(() => ({
 export function publishTrades(rows: readonly TradeRow[], epoch: number): void {
   useTradesStore.setState({ rows, loading: false, epoch });
 }
+
+// Called synchronously on a focus switch, before the SubscriptionManager
+// even sends the new subscribe message — clears the old symbol's feed
+// immediately so nothing stale is visible while the new one loads.
+export function resetTradesForFocusSwitch(epoch: number): void {
+  useTradesStore.setState({ rows: [], loading: true, epoch });
+}

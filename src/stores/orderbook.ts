@@ -18,3 +18,10 @@ export const useOrderbookStore = create<OrderbookState>(() => ({
 export function publishOrderbook(view: OrderbookSnapshot, epoch: number): void {
   useOrderbookStore.setState({ view, loading: false, epoch });
 }
+
+// Called synchronously on a focus switch, before the SubscriptionManager
+// even sends the new subscribe message — clears the old symbol's book
+// immediately so nothing stale is visible while the new one loads.
+export function resetOrderbookForFocusSwitch(epoch: number): void {
+  useOrderbookStore.setState({ view: null, loading: true, epoch });
+}
