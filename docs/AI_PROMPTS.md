@@ -129,6 +129,42 @@ swap, no-drift, dedupe, partial overlap, channel-order determinism).
 
 ---
 
-<!-- Phase 3+ prompts appended here as each phase completes. -->
+## Phase 3 — Ticker bar with render isolation
+
+**Surface:** Claude in VS Code.
+
+**Prompt 3.1:**
+> Read docs/architecture-and-build-plan.md (TickerEngine section), src/transport/*,
+> src/config/symbols.ts.
+>
+> Implement:
+> 1. src/engines/TickerEngine.ts — framework-free. onMessage stores the raw
+>    message in a Map<Symbol, TickerMsg> and adds the symbol to a dirty Set (two
+>    O(1) ops). A requestAnimationFrame flush loop builds an immutable TickerView
+>    { symbol, price, changePct, dir } per dirty symbol — price from close,
+>    changePct = (parseFloat(ltp_change_24h) − 1) × 100 (RATIO), dir vs previous
+>    published price — then publishes and clears dirty.
+> 2. src/stores/tickers.ts — Record<Symbol, TickerView>. Publish REPLACES ONLY
+>    CHANGED KEYS so unchanged symbols keep referential identity.
+> 3. src/stores/market.ts — { focusedSymbol } persisted via zustand/persist.
+> 4. src/components/TickerBar.tsx + TickerCell.tsx — TickerCell React.memo'd,
+>    subscribes with s => s.tickers[symbol] only; price formatted to the symbol's
+>    precision; change % colored; click sets focusedSymbol; focused cell reads
+>    focus via its own narrow selector s => s.focusedSymbol === symbol.
+> Subscribe v2/ticker for ALL six symbols at boot. No `any`.
+
+**Human verification (React DevTools Profiler):**
+- Ticking recording: parents (App, TickerBar) NEVER appear in any commit; only
+  TickerCell(s) render. Subset commit 38/144 showed only BTCUSD + ETHUSD
+  rendering while the other four cells stayed out — proves per-symbol isolation.
+- Coalescing: all six symbols ticking in one frame collapse into a single commit.
+- Evidence saved: docs/evidence/profiler-ticker-isolation.png (subset commit) and
+  profiler-ticker-coalescing.png (all-six single commit).
+- Focus persists across page reload (zustand/persist).
+
+---
+
+<!-- Phase 4+ prompts appended here as each phase completes. -->
+
 
 

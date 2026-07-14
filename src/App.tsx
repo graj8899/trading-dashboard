@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { ConnectionBadge } from "./components/ConnectionBadge";
+import { TickerBar } from "./components/TickerBar";
 import { bootTransport } from "./transport/bootTransport";
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
   return (
     <div>
       <ConnectionBadge />
+      <TickerBar />
     </div>
   );
 }
