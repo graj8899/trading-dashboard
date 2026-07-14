@@ -223,7 +223,34 @@ change. Traced that the map-rebuild preserves the 300ms rate-limit window across
 flushes. Memory-bound test confirms ≤2×N entries over 200 wandering snapshots.
 `npm test` green.
 
-<!-- 4.3 appended below when complete. -->
+### 4.3 — panel UI
+
+**Prompt 4.3:**
+> Build src/components/OrderBookPanel.tsx per the doc: asks on top (lowest ask
+> nearest the spread row), bids below; FIXED 12 rows per side rendered always
+> (stable DOM — zero layout shift); each row price/size/cumulative + depth bar as
+> an absolutely-positioned div scaled with transform: scaleX(cum/maxCum) (transform
+> only). Spread row: mid, spreadAbs, spreadBps, imbalance. Grouping dropdown fed
+> from the focused symbol's ladder, writing preferences. Flash via a CSS animation
+> keyed on a changeKey. Loading skeleton when loading. Panel subscribes to the
+> orderbook store only. No `any`.
+
+**Follow-up (review-driven):**
+> The fixed rows are keyed by price, so every snapshot's mid shift remounts all 24
+> rows. Key each row by its position index instead (DOM node reuse — only content
+> updates), keeping the flash overlay's price+size changeKey so animations still
+> retrigger.
+
+**Human verification (screen recording):** book renders correctly for the
+subscribed symbol — BTC ~63,000 at 1dp on the $1 grid, SOL ~76.28 at 4dp on the
+0.0001 grid; depth bars, spread row (mid/abs/bps/imbalance), and per-symbol
+grouping ladders all correct. Confirmed index-keyed rows + price/size flash key.
+Known gap (closed in Phase 6): switching focus updates the panel label/precision/
+grouping immediately but the l2_orderbook subscription only follows after reload.
+
+---
+
+<!-- Phase 5+ prompts appended here as each phase completes. -->
 
 
 
