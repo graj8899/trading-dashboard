@@ -333,7 +333,46 @@ while the feed populates immediately.
 
 ---
 
-<!-- Phase 7+ prompts appended here as each phase completes. -->
+## Phase 7 — Stress + measurement
+
+**Surface:** Claude in VS Code + terminal (backend /intervals API).
+
+**Prompt 7.1:**
+> Add a dev-only metrics overlay (toggle with backtick, excluded from prod via
+> import.meta.env.DEV). Per engine — messages/sec in, flushes/sec out, drop ratio,
+> last + p95 flush duration; plus FPS and JS heap. Tiny fixed panel with its own
+> rAF loop, zero cost when hidden. Add minimal instrumentation hooks to the three
+> engines. No `any`.
+
+**Measured under evaluation-level stress** (all_trades 1-5ms, l2_orderbook 10-20ms
+then 1-5ms, v2/ticker 10-20ms via the /intervals API):
+- ~925 msg/s absorbed → ~48 flushes/s per engine (81-88% coalesced/batched),
+  steady 60 fps. The "React never sees the message rate" thesis, measured.
+- Flush duration stays below the browser's clamped 0.1ms performance timer
+  resolution even at 200+ snapshots/s — reported as "< 0.1ms", not a false p95.
+- Clarified drop-ratio semantics: ticker/orderbook drop intermediates losslessly;
+  trades batch (never dropped except 2000-queue shed).
+
+**Two retention bugs found via profiling and fixed (review-driven):**
+1. Heap snapshot showed ~70% of the heap retained by PerformanceMeasure /
+   blink::UserTiming — the instrumentation's performance.mark/measure entries were
+   accumulating (clearMarks/clearMeasures didn't reliably reclaim them). Replaced
+   with a performance.now() delta (src/metrics/instrument.ts): same duration and
+   resolution, zero timeline entries.
+2. Performance Monitor showed DOM Nodes climbing to 72k+ under stress. Root cause:
+   the order-book flash overlay mounted a NEW keyed CSS-animated div per flash
+   (~1,400/sec under constant-flash stress), and detached elements with a running
+   CSS animation are retained until the animation ends. Replaced with one stable
+   persistent overlay per row tinted from row.flash via a CSS transition — zero
+   DOM churn. DOM nodes then flat (~6k), heap flat.
+
+**Human verification:** overlay-under-stress, Profiler isolation under stress,
+Performance Monitor showing flat DOM nodes + JS heap, and kill/restart recovery
+all captured in docs/evidence/.
+
+---
+
+<!-- Phase 8 appended when complete. -->
 
 
 
