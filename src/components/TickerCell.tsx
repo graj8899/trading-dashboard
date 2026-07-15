@@ -35,8 +35,11 @@ function TickerCellImpl({ symbol }: TickerCellProps) {
         padding: "0.5em 0.75em",
         minWidth: "7em",
         borderRadius: "6px",
-        border: isFocused ? "2px solid #2563eb" : "1px solid #e5e4e7",
-        background: isFocused ? "#eff6ff" : "none",
+        // 2px border both states so focusing doesn't shift neighbors by 1px.
+        border: `2px solid ${isFocused ? "#2563eb" : "var(--border)"}`,
+        // Dark-theme highlight: a translucent blue tint keeps the white
+        // symbol/price text readable (the old light #eff6ff washed it out).
+        background: isFocused ? "rgba(37, 99, 235, 0.18)" : "transparent",
         cursor: "pointer",
         textAlign: "left",
       }}
