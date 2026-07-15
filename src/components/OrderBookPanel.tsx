@@ -7,7 +7,7 @@ import { usePreferencesStore } from "../stores/preferences";
 
 const VISIBLE_LEVELS = 12;
 const ROW_HEIGHT = "22px";
-const COLUMNS = "auto 1fr 1fr 1fr"; // depth-bar gutter is layered, not a column
+const COLUMNS = "1fr 1fr 1fr"; // price | size | total; depth bar is layered behind
 
 type Side = "bid" | "ask";
 
@@ -108,6 +108,23 @@ function OrderBookRow({ side, row, maxCum, precision }: OrderBookRowProps) {
   );
 }
 
+function SpreadStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.1em",
+        alignItems: "center",
+        lineHeight: 1.2,
+      }}
+    >
+      <span className="col-head">{label}</span>
+      <span style={{ color: "var(--text-h)" }}>{value}</span>
+    </span>
+  );
+}
+
 function SkeletonRow() {
   return (
     <div style={rowGridStyle}>
@@ -144,27 +161,63 @@ export function OrderBookPanel() {
   const showSkeleton = loading || !view;
 
   return (
-    <section style={{ width: "100%", maxWidth: "24em" }}>
+    <section className="panel panel--book">
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "0.5em",
+          marginBottom: "0.75em",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "1em" }}>{focusedSymbol} Book</h3>
-        <select
-          aria-label="Grouping"
-          value={grouping}
-          onChange={(e) => setGrouping(focusedSymbol, Number(e.target.value))}
+        <h3 style={{ margin: 0, fontSize: "1em", color: "var(--text-h)" }}>
+          {focusedSymbol} Book
+        </h3>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.4em",
+            fontSize: "0.8em",
+            color: "var(--muted)",
+          }}
         >
-          {groupingLadder.map((increment) => (
-            <option key={increment} value={increment}>
-              {increment}
-            </option>
-          ))}
-        </select>
+          Group
+          <select
+            aria-label="Grouping"
+            value={grouping}
+            onChange={(e) => setGrouping(focusedSymbol, Number(e.target.value))}
+          >
+            {groupingLadder.map((increment) => (
+              <option key={increment} value={increment}>
+                {increment}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div
+        style={{
+          ...rowGridStyle,
+          height: "auto",
+          paddingBottom: "0.4em",
+          marginBottom: "0.15em",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span
+          className="col-head"
+          style={{ ...cellStyle, textAlign: "left", zIndex: 2 }}
+        >
+          Price
+        </span>
+        <span className="col-head" style={{ ...cellStyle, zIndex: 2 }}>
+          Size
+        </span>
+        <span className="col-head" style={{ ...cellStyle, zIndex: 2 }}>
+          Total
+        </span>
       </div>
 
       <div>
@@ -188,8 +241,8 @@ export function OrderBookPanel() {
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr 1fr",
           alignItems: "center",
-          padding: "0.4em 0.5em",
-          margin: "0.25em 0",
+          padding: "0.5em 0.5em",
+          margin: "0.35em 0",
           borderTop: "1px solid var(--border)",
           borderBottom: "1px solid var(--border)",
           fontSize: "0.85em",
@@ -202,12 +255,16 @@ export function OrderBookPanel() {
           </span>
         ) : (
           <>
-            <span title="Mid">{formatNumber(view.mid, precision)}</span>
-            <span title="Spread (abs)">
-              {formatNumber(view.spreadAbs, precision)}
-            </span>
-            <span title="Spread (bps)">{formatNumber(view.spreadBps, 2)} bps</span>
-            <span title="Imbalance">{formatNumber(view.imbalance, 2)}</span>
+            <SpreadStat label="Mid" value={formatNumber(view.mid, precision)} />
+            <SpreadStat
+              label="Spread"
+              value={formatNumber(view.spreadAbs, precision)}
+            />
+            <SpreadStat label="Bps" value={formatNumber(view.spreadBps, 2)} />
+            <SpreadStat
+              label="Imbalance"
+              value={formatNumber(view.imbalance, 2)}
+            />
           </>
         )}
       </div>

@@ -147,22 +147,25 @@ export function TradesPanel() {
   };
 
   return (
-    <section style={{ width: "100%", maxWidth: "28em" }}>
+    <section className="panel panel--trades">
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "0.5em",
+          marginBottom: "0.75em",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "1em" }}>{focusedSymbol} Trades</h3>
+        <h3 style={{ margin: 0, fontSize: "1em", color: "var(--text-h)" }}>
+          {focusedSymbol} Trades
+        </h3>
         <label
           style={{
             display: "flex",
             alignItems: "center",
             gap: "0.4em",
             fontSize: "0.8em",
+            color: "var(--muted)",
           }}
         >
           Large ≥
@@ -180,15 +183,30 @@ export function TradesPanel() {
 
       <RollingStatsBar />
 
+      <div
+        style={{
+          ...rowStyle,
+          padding: "0.2em 0.5em 0.4em",
+          marginBottom: "0.15em",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span className="col-head">Time</span>
+        <span className="col-head">Price</span>
+        <span className="col-head">Size</span>
+        <span className="col-head" style={{ textAlign: "right" }} />
+      </div>
+
       <div style={{ position: "relative" }}>
         <div
           ref={scrollRef}
           onScroll={handleScroll}
           style={{
-            height: "18em",
+            height: "var(--feed-height, 30em)",
             overflowY: "auto",
             border: "1px solid var(--border)",
-            borderRadius: "6px",
+            borderRadius: "8px",
+            background: "var(--panel-2)",
           }}
         >
           {loading || rows.length === 0 ? (

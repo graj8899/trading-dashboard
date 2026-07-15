@@ -11,6 +11,15 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  /* Dashboard surface tokens (see dark override below). */
+  --panel: #ffffff;
+  --panel-2: #f7f7fa;
+  --muted: #8b8794;
+  --up: #1f9d55;
+  --down: #c0392b;
+  --focus: #2563eb;
+  --shell-max: 1320px;
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -43,6 +52,10 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+    --panel: #1b1d24;
+    --panel-2: #202229;
+    --muted: #8b90a0;
   }
 
   #social .button-icon {
@@ -51,11 +64,9 @@
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100%;
+  margin: 0;
+  text-align: left;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -64,6 +75,109 @@
 
 body {
   margin: 0;
+}
+
+/* ── App shell ───────────────────────────────────────────────────────── */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.app-header__inner,
+.app-main {
+  width: 100%;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding-inline: 24px;
+}
+
+.app-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 14px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.brand__mark {
+  align-self: center;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--up), #14b8a6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.brand__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-h);
+  letter-spacing: -0.2px;
+}
+.brand__sub {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .brand__sub {
+    display: none;
+  }
+}
+
+.app-main {
+  flex: 1;
+  padding-block: 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Panels ──────────────────────────────────────────────────────────── */
+.panels {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.panel--book {
+  flex: 0 1 400px;
+}
+.panel--trades {
+  flex: 1 1 460px;
+  min-width: 380px;
+}
+
+/* Small uppercase column-header labels shared by both panels. */
+.col-head {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 h1,
