@@ -61,3 +61,21 @@ Real limitations, stated plainly — not "future work," just what's true today.
 - `performance.memory` (used for the heap reading in the metrics overlay)
   is a non-standard, Chrome-only API; the overlay shows no heap figure in
   other browsers.
+
+## Resolved (not open, noted for the record)
+
+- **User Timing heap retention.** A heap snapshot under stress showed ~70%
+  of the heap retained by `PerformanceMeasure`/`blink::UserTiming` —
+  `performance.mark`/`measure` entries from the metrics instrumentation
+  accumulating faster than `clearMarks`/`clearMeasures` reclaimed them.
+  Fixed by replacing mark/measure with a plain `performance.now()` delta
+  (`src/metrics/instrument.ts`) — same duration and resolution, zero
+  timeline entries created.
+- **DOM node growth from the flash overlay.** Chrome's Performance Monitor
+  showed DOM node count climbing to 72k+ under constant-flash stress. Cause:
+  the order-book flash overlay mounted a *new* keyed, CSS-animated `<div>`
+  per flash event (~1,400/s at peak), and a detached element with a running
+  CSS animation isn't garbage-collected until the animation finishes. Fixed
+  by using one stable, persistent overlay `<div>` per row, tinted via a CSS
+  `background-color` transition instead of a remounted keyframe animation
+  (`src/components/OrderBookPanel.tsx`) — zero DOM churn, node count flat.

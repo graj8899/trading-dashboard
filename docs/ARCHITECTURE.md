@@ -50,7 +50,8 @@ Budget: orderbook flush <5ms, steady 60fps, no unbounded heap growth.
 backend's `/intervals` API):
 
 - **~925 msg/s absorbed → ~48 flushes/s per engine** (81–88% coalesced by
-  rAF batching), steady 60fps — the coalescing thesis, measured.
+  rAF batching), steady 60fps — the coalescing thesis, measured
+  (`evidence/metrics-overlay-stress.png`).
 - **Flush duration <0.1ms**, below the browser's clamped timer resolution
   even at 200+ snapshots/s — reported honestly, not a fabricated p95.
 - Drop semantics differ by design: ticker/orderbook drop intermediates
@@ -60,7 +61,8 @@ backend's `/intervals` API):
   commit 1–2 memo'd cells per change (`evidence/profiler-ticker-isolation.png`,
   `profiler-book-isolation.png`); a correlated multi-symbol tick still
   batches into one commit (`profiler-ticker-coalescing.png`).
-- 10-minute soak: DOM node count and JS heap both flat after the two fixes below.
+- Sustained multi-minute soak under stress: DOM node count and JS heap both
+  flat after the two fixes below (`evidence/dom-leak-after.png`).
 - Kill/restart mid-stress: badge cycles `reconnecting → connected`,
   subscriptions self-heal via ack diff, no page refresh.
 
@@ -76,7 +78,8 @@ backend's `/intervals` API):
    `<div>` per flash (~1,400/s at peak); a detached element with a running
    animation is retained until it finishes. Fixed with **one stable overlay
    per row**, tinted from `row.flash` via a CSS *transition* — zero churn,
-   nodes flat at ~6k after.
+   nodes flat at ~6k after (before/after: `evidence/dom-leak-before.png`,
+   `dom-leak-after.png`).
 
 ## 3. Order book grouping: the integer-tick pipeline
 
@@ -90,13 +93,14 @@ group:  bid = floor(ticks/g)×g | ask = ceil(ticks/g)×g | g = Math.round(increm
 derive: mid, spreadAbs/Bps, imbalance — from the GROUPED view, per spec
 ```
 
-**Why integer ticks:** float price arithmetic breaks silently at DOGEUSD's
-6dp — products like `0.1 × 10^6` don't round-trip exactly in IEEE-754, so a
-float-keyed bucket map produces off-by-one-tick, non-deterministic grouping
-at the finest rung. Converting to integer ticks up front (`Math.round` on
-both the tick conversion and `g`) makes every bucket comparison exact at all
-6 precisions — verified in unit tests including a no-drift round-trip at
-DOGEUSD 6dp against the real BTC fixture capture.
+**Why integer ticks:** IEEE-754 float products aren't *guaranteed* to
+round-trip exactly at DOGEUSD's 6dp (`increment × 10^6` can land just off an
+integer depending on the value), so a float-keyed bucket map risks
+off-by-one-tick grouping at the finest rung. Converting to integer ticks up
+front — `Math.round` on both the tick conversion and `g` — makes every
+bucket comparison provably exact at all 6 precisions regardless of
+representation. Verified by unit tests including a no-drift round-trip at
+DOGEUSD 6dp, with the real BTC fixture capture as an additional input.
 
 **Why early exit bounds the work:** raw arrays are sorted best→worst, so the
 bucket key is monotonic while walking them — buckets for one price group are
