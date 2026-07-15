@@ -1,3 +1,4 @@
+import { REFRESH_MS } from "../config/refresh";
 import { SYMBOL_CONFIG, type Symbol } from "../config/symbols";
 import type { OrderbookMessage } from "../types/messages";
 import {
@@ -35,6 +36,10 @@ export interface OrderBookEngineDeps {
   // imported directly) to keep this engine framework/store-import-free.
   getEpoch: () => number;
   getGroupingIncrement: (symbol: Symbol) => number;
+  // Perceptual publish interval; defaults to the app-wide REFRESH_MS.
+  // Injectable so tests can disable throttling (0) to drive fine-grained
+  // flash behavior synchronously.
+  refreshMs?: number;
 }
 
 function bucketKey(side: "bid" | "ask", price: number, scale: number): string {
@@ -49,10 +54,14 @@ export class OrderBookEngine {
   private readonly publish: PublishOrderbookSnapshot;
   private readonly getEpoch: () => number;
   private readonly getGroupingIncrement: (symbol: Symbol) => number;
+  private readonly refreshMs: number;
 
   private latestRaw: OrderbookMessage | null = null;
   private latestRawEpoch = 0;
   private rafHandle: number | null = null;
+  // -Infinity = "never published", so the first eligible snapshot publishes
+  // immediately; afterwards at most once per REFRESH_MS (perceptual cadence).
+  private lastPublishAt = Number.NEGATIVE_INFINITY;
 
   // Cross-snapshot state for flash detection, keyed by "side:bucketTicks".
   // Rebuilt every flush to hold ONLY the current snapshot's visible buckets
@@ -70,6 +79,7 @@ export class OrderBookEngine {
     this.publish = deps.publish;
     this.getEpoch = deps.getEpoch;
     this.getGroupingIncrement = deps.getGroupingIncrement;
+    this.refreshMs = deps.refreshMs ?? REFRESH_MS;
   }
 
   onMessage(msg: OrderbookMessage): void {
@@ -105,6 +115,8 @@ export class OrderBookEngine {
       this.previousBucketSizes.clear();
       this.lastFlashAt.clear();
       this.lastSeenEpoch = currentEpoch;
+      // Bypass the throttle so the new symbol/session paints immediately.
+      this.lastPublishAt = Number.NEGATIVE_INFINITY;
     }
 
     if (this.latestRawEpoch < currentEpoch) {
@@ -113,6 +125,12 @@ export class OrderBookEngine {
       this.latestRaw = null;
       return;
     }
+
+    // Perceptual throttle: keep the latest snapshot buffered (latest-wins) and
+    // publish at most once per REFRESH_MS. Newer messages overwrite latestRaw
+    // while we wait, so the published book is always the freshest one.
+    if (now - this.lastPublishAt < this.refreshMs) return;
+    this.lastPublishAt = now;
 
     const msg = this.latestRaw;
     this.latestRaw = null;

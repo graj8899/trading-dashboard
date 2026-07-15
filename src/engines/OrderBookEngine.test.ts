@@ -31,6 +31,7 @@ describe("OrderBookEngine epoch guard", () => {
       publish,
       getEpoch: () => epoch,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     // Message arrives while epoch is 0 (captured at ingestion time).
@@ -52,6 +53,7 @@ describe("OrderBookEngine epoch guard", () => {
       publish,
       getEpoch: () => epoch,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -70,6 +72,7 @@ describe("OrderBookEngine epoch guard", () => {
       publish,
       getEpoch: () => epoch,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     // Stale message buffered pre-reconnect, never flushed in time.
@@ -95,6 +98,7 @@ describe("OrderBookEngine epoch guard", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -104,6 +108,52 @@ describe("OrderBookEngine epoch guard", () => {
     engine.flush(); // no new message since the last flush
 
     expect(publish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("OrderBookEngine perceptual throttle", () => {
+  it("publishes immediately, then at most once per refreshMs, always the latest snapshot", () => {
+    const publish = vi.fn();
+    const engine = new OrderBookEngine({
+      publish,
+      getEpoch: () => 0,
+      getGroupingIncrement: () => 1,
+      refreshMs: 1000,
+    });
+
+    engine.onMessage(makeMessage([["100.0", "1.0000"]], [["101.0", "1.0000"]]));
+    engine.flush(0); // first publish is immediate
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    engine.onMessage(makeMessage([["102.0", "1.0000"]], [["103.0", "1.0000"]]));
+    engine.flush(500); // within the interval -> throttled, still buffered
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    engine.onMessage(makeMessage([["104.0", "1.0000"]], [["105.0", "1.0000"]]));
+    engine.flush(1000); // interval elapsed -> publishes the freshest snapshot
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(lastSnapshot(publish).bids[0]?.price).toBe(104.0);
+  });
+
+  it("bypasses the throttle on an epoch change for an immediate publish", () => {
+    let epoch = 0;
+    const publish = vi.fn();
+    const engine = new OrderBookEngine({
+      publish,
+      getEpoch: () => epoch,
+      getGroupingIncrement: () => 1,
+      refreshMs: 1000,
+    });
+
+    engine.onMessage(makeMessage([["100.0", "1.0000"]], [["101.0", "1.0000"]]));
+    engine.flush(0);
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    epoch = 1; // focus switch / reconnect
+    engine.onMessage(makeMessage([["200.0", "1.0000"]], [["201.0", "1.0000"]]));
+    engine.flush(100); // only 100ms later, but a new epoch paints immediately
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(lastSnapshot(publish).bids[0]?.price).toBe(200.0);
   });
 });
 
@@ -123,6 +173,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -139,6 +190,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -161,6 +213,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -184,6 +237,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -212,6 +266,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -246,6 +301,7 @@ describe("OrderBookEngine flash rate limiter", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1,
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     engine.onMessage(
@@ -312,6 +368,7 @@ describe("OrderBookEngine flash-tracking memory bound", () => {
       publish,
       getEpoch: () => 0,
       getGroupingIncrement: () => 1, // BTCUSD, precision 1 -> g = 10 ticks = 1.0
+      refreshMs: 0, // disable perceptual throttle; drive flash logic directly
     });
 
     // 20 raw levels/side, one tick apart, so 20 distinct buckets are

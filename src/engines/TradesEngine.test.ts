@@ -146,6 +146,34 @@ describe("TradesEngine merge", () => {
   });
 });
 
+describe("TradesEngine perceptual feed throttle", () => {
+  it("drains every flush but publishes the feed at most once per refreshMs, as one batch", () => {
+    const publishTrades = vi.fn();
+    const publishStats = vi.fn();
+    const engine = new TradesEngine({
+      publishTrades,
+      publishStats,
+      getEpoch: () => 0,
+      refreshMs: 1000,
+    });
+
+    engine.onMessage(makeTrade({ price: "1.0", timestamp: 0, size: 1 }));
+    engine.flush(0); // first feed publish is immediate
+    expect(publishTrades).toHaveBeenCalledTimes(1);
+
+    engine.onMessage(makeTrade({ price: "2.0", timestamp: 100_000, size: 1 }));
+    engine.flush(200); // within interval -> row drained internally, not published
+    expect(publishTrades).toHaveBeenCalledTimes(1);
+
+    engine.onMessage(makeTrade({ price: "3.0", timestamp: 300_000, size: 1 }));
+    engine.flush(1000); // interval elapsed -> one publish carrying the whole batch
+    expect(publishTrades).toHaveBeenCalledTimes(2);
+
+    const rows = lastRowsCall(publishTrades);
+    expect(rows.map((r) => r.price)).toEqual([1, 2, 3]);
+  });
+});
+
 describe("TradesEngine 1Hz stats cadence", () => {
   it("publishes stats immediately on the first flush, then at most once per second", () => {
     const { engine, publishStats } = makeEngine({});

@@ -1,3 +1,4 @@
+import { REFRESH_MS } from "../config/refresh";
 import type { Symbol } from "../config/symbols";
 import type { TickerMessage } from "../types/messages";
 
@@ -19,6 +20,9 @@ export class TickerEngine {
   private readonly dirty = new Set<Symbol>();
   private readonly lastPublishedPrice = new Map<Symbol, number>();
   private rafHandle: number | null = null;
+  // -Infinity = "never published", so the first flush publishes immediately;
+  // afterwards we publish at most once per REFRESH_MS (perceptual cadence).
+  private lastPublishAt = Number.NEGATIVE_INFINITY;
 
   constructor(publish: (updates: TickerViewUpdates) => void) {
     this.publish = publish;
@@ -46,9 +50,13 @@ export class TickerEngine {
   }
 
   // Exposed directly (not just via the rAF loop) so it can be driven
-  // synchronously in tests without a real animation frame.
-  flush(): void {
+  // synchronously in tests without a real animation frame or real clock.
+  flush(now: number = Date.now()): void {
     if (this.dirty.size === 0) return;
+    // Perceptual throttle: let the dirty set keep accumulating across frames
+    // and publish the latest values at most once per REFRESH_MS.
+    if (now - this.lastPublishAt < REFRESH_MS) return;
+    this.lastPublishAt = now;
 
     const updates: TickerViewUpdates = {};
     for (const symbol of this.dirty) {

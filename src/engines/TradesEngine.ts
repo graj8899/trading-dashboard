@@ -1,3 +1,4 @@
+import { REFRESH_MS } from "../config/refresh";
 import type { TradeMessage } from "../types/messages";
 import { deriveSide, mergeIntoRows, type TradeRow } from "./trades/merge";
 import { RollingStats, type RollingStatsSnapshot } from "./trades/RollingStats";
@@ -19,6 +20,10 @@ export interface TradesEngineDeps {
   publishTrades: PublishTradeRows;
   publishStats: PublishTradeStats;
   getEpoch: () => number;
+  // Perceptual feed-publish interval; defaults to the app-wide REFRESH_MS.
+  // Injectable so tests can disable throttling (0) and drive the feed
+  // synchronously. Stats always publish at their own 1Hz cadence.
+  refreshMs?: number;
 }
 
 interface PendingTrade {
@@ -36,6 +41,7 @@ export class TradesEngine {
   private readonly publishTrades: PublishTradeRows;
   private readonly publishStats: PublishTradeStats;
   private readonly getEpoch: () => number;
+  private readonly refreshMs: number;
 
   private pending: PendingTrade[] = [];
   private rows: TradeRow[] = [];
@@ -43,11 +49,17 @@ export class TradesEngine {
   private rafHandle: number | null = null;
   private lastSeenEpoch: number | null = null;
   private lastStatsPublishedSecond: number | null = null;
+  // Feed publish is throttled to the perceptual cadence: trades keep draining
+  // into `rows` every frame (lossless), but the store is updated at most once
+  // per REFRESH_MS. `feedDirty` marks rows changed since the last publish.
+  private lastFeedPublishAt = Number.NEGATIVE_INFINITY;
+  private feedDirty = false;
 
   constructor(deps: TradesEngineDeps) {
     this.publishTrades = deps.publishTrades;
     this.publishStats = deps.publishStats;
     this.getEpoch = deps.getEpoch;
+    this.refreshMs = deps.refreshMs ?? REFRESH_MS;
   }
 
   onMessage(trade: TradeMessage): void {
@@ -85,6 +97,10 @@ export class TradesEngine {
       this.rollingStats.reset();
       this.lastSeenEpoch = currentEpoch;
       this.lastStatsPublishedSecond = null; // force an immediate stats publish
+      // Bypass the feed throttle so the new session's feed (starting empty)
+      // publishes immediately rather than showing the old symbol for up to 1s.
+      this.lastFeedPublishAt = Number.NEGATIVE_INFINITY;
+      this.feedDirty = true;
     }
 
     const toProcess = this.pending;
@@ -108,8 +124,15 @@ export class TradesEngine {
       this.rows = this.rows.slice(this.rows.length - VISIBLE_ROWS);
     }
 
-    if (rowsChanged) {
+    if (rowsChanged) this.feedDirty = true;
+
+    // Perceptual throttle: publish the merged feed at most once per REFRESH_MS.
+    // Rows kept accumulating internally between publishes, so one publish shows
+    // the whole batch of the interval's trades at once — readable, not strobing.
+    if (this.feedDirty && now - this.lastFeedPublishAt >= this.refreshMs) {
       this.publishTrades(this.rows, currentEpoch);
+      this.lastFeedPublishAt = now;
+      this.feedDirty = false;
     }
 
     // Stats publish at 1Hz, independent of the feed: gated by wall-clock
